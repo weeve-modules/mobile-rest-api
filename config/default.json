@@ -1,0 +1,18 @@
+{
+  "prod": {
+    "PORT": 443,
+    "HOST": "localhost",
+    "MONGO_DB_NAME": "wohnio",
+    "MONGO_DB_USERNAME": "wohnio",
+    "MONGO_DB_PASSWORD": "wohnio",
+    "MONGO_DB_HOST": "mongodb.wohnio.weeve.engineering:27017"
+  },
+  "dev": {
+    "PORT": 8080,
+    "HOST": "localhost",
+    "MONGO_DB_NAME": "wohnio",
+    "MONGO_DB_USERNAME": "",
+    "MONGO_DB_PASSWORD": "",
+    "MONGO_DB_HOST": "localhost:27017"
+  }
+}
