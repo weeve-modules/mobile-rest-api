@@ -10,6 +10,8 @@ const {
   updateRoomPlan,
   getDevicesList,
 } = require('./utils/mongodb')
+const { translateCommand, sendCommand, queryInfluxDB } = require('./utils/util')
+
 const config = require('config')
 const winston = require('winston')
 const expressWinston = require('express-winston')
@@ -52,11 +54,56 @@ app.get('/health', async (req, res) => {
   })
 })
 
-app.post('/devices', async (req, res) => {
-  const json = req.body
-  const devices = await getDevicesList(json.location)
+app.get('/devices/:id', async (req, res) => {
+  const devices = await getDevicesList(req.params.id)
   res.send({
     data: devices,
+  })
+})
+
+app.get('/devices/temperature/:id', async (req, res) => {
+  const devEUI = req.params.id
+  const query = {
+    query: `|> range(start: -5m, stop:-1m) |> filter(fn: (r) => r._measurement == "http_listener_v2") |> filter(fn: (r) => r._field == "targetTemperature") |> filter(fn: (r) => r["devEUI"] == "${devEUI}")`,
+  }
+  const data = queryInfluxDB(query)
+  if (data !== false) {
+    return res.send({
+      status: true,
+      data,
+    })
+  } else {
+    return res.send({
+      status: false,
+      message: 'Error fetching device temperature',
+    })
+  }
+})
+
+app.post('/devices/temperature', async (req, res) => {
+  const json = req.body
+  const devEUI = json.devEUI
+  const payload = {
+    command: {
+      name: 'setTemperatur',
+      params: {
+        value: json.temperature,
+      },
+    },
+  }
+  const command = await translateCommand(payload)
+  if (command !== false) {
+    const melita = await sendCommand(devEUI, command)
+    if (melita !== false) {
+      return res.send({
+        status: true,
+        message: 'Command executed successfully',
+      })
+    }
+  }
+  return res.send({
+    status: false,
+    message: `Error sending command to the device ${devEUI}`,
   })
 })
 
