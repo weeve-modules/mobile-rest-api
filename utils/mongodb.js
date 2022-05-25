@@ -1,7 +1,7 @@
 const { MongoClient } = require('mongodb')
 const config = require('config')
 const ObjectId = require('mongodb').ObjectID
-const settings = config[process.env.NODE_ENV]
+const settings = config[process.env.NODE_ENV || 'prod']
 
 let MONGO_DB_URL = `mongodb://${settings.MONGO_DB_HOST}/${settings.MONGO_DB_NAME}?authSource=${settings.MONGO_DB_NAME}`
 if (settings.MONGO_DB_USERNAME !== '')

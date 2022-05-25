@@ -17,7 +17,7 @@ const winston = require('winston')
 const expressWinston = require('express-winston')
 const express = require('express')
 
-const settings = config[process.env.NODE_ENV]
+const settings = config[process.env.NODE_ENV || 'prod']
 
 // initialization
 const app = express()

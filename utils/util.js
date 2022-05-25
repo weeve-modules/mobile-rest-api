@@ -1,5 +1,5 @@
 const config = require('config')
-const settings = config[process.env.NODE_ENV]
+const settings = config[process.env.NODE_ENV || 'prod']
 
 const formatTimeDiff = (t1, t2) => {
   const diff = Math.max(t1, t2) - Math.min(t1, t2)
