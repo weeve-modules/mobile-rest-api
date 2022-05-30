@@ -5,7 +5,7 @@
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "NODE_ENV=prod node app.js",
+    "start": "node app.js",
     "dev": "NODE_ENV=dev node app.js",
     "dev-win": "set NODE_ENV=dev&&node app.js",
     "lint-fix": "eslint --ext js --fix ./image/src",
@@ -24,10 +24,12 @@
   "license": "ISC",
   "dependencies": {
     "config": "^3.3.6",
+    "cors": "^2.8.5",
     "express": "^4.17.3",
     "express-winston": "^4.2.0",
-    "winston": "^3.6.0",
     "mongodb": "^4.4.1",
-    "mongoose": "^6.2.7"
+    "mongoose": "^6.2.7",
+    "node-fetch": "^2.6.1",
+    "winston": "^3.6.0"
   }
 }

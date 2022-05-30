@@ -16,14 +16,14 @@ const config = require('config')
 const winston = require('winston')
 const expressWinston = require('express-winston')
 const express = require('express')
-
+const cors = require('cors')
 const settings = config[process.env.NODE_ENV || 'prod']
 
 // initialization
 const app = express()
 app.use(express.urlencoded({ extended: true }))
 app.use(express.json())
-
+app.use(cors())
 // logger
 app.use(
   expressWinston.logger({
@@ -63,10 +63,7 @@ app.get('/devices/:id', async (req, res) => {
 
 app.get('/devices/temperature/:id', async (req, res) => {
   const devEUI = req.params.id
-  const query = {
-    query: `|> range(start: -5m, stop:-1m) |> filter(fn: (r) => r._measurement == "http_listener_v2") |> filter(fn: (r) => r._field == "targetTemperature") |> filter(fn: (r) => r["devEUI"] == "${devEUI}")`,
-  }
-  const data = queryInfluxDB(query)
+  const data = await queryInfluxDB(devEUI)
   if (data !== false) {
     return res.send({
       status: true,
@@ -84,16 +81,14 @@ app.post('/devices/temperature', async (req, res) => {
   const json = req.body
   const devEUI = json.devEUI
   const payload = {
-    command: {
-      name: 'setTemperatur',
-      params: {
-        value: json.temperature,
-      },
+    name: 'setTemperatur',
+    params: {
+      value: json.temperature,
     },
   }
-  const command = await translateCommand(payload)
-  if (command !== false) {
-    const melita = await sendCommand(devEUI, command)
+  const data = await translateCommand(payload)
+  if (data !== false) {
+    const melita = await sendCommand(devEUI, data.command)
     if (melita !== false) {
       return res.send({
         status: true,
@@ -123,22 +118,40 @@ app.post('/getLocationsUser', async (req, res) => {
 
 app.post('/getDevicesUser', async (req, res) => {
   getDeviceByDeviceID('device', req.body.deviceID).then(async response => {
+    const data = await queryInfluxDB(response.EUI.toLowerCase())
+    if (data !== false) {
+      response.actualTemperature = data._value
+    }
     res.send(response)
   })
 })
 
 app.post('/updateRoomTemperature', async (req, res) => {
-  updateRoomTemperature('device', ObjectId(req.body.idSensor), {
+  const json = req.body
+  updateRoomTemperature('device', ObjectId(json.idSensor), {
     manualTemperature: {
       command: {
         name: 'setTemperatur',
         params: {
-          value: req.body.temperature,
+          value: json.temperature,
           until: '1970-01-01T00:00:00.000Z',
         },
       },
     },
   }).then(async response => {
+    // send command for temperature
+    const devEUI = json.devEUI
+    const payload = {
+      name: 'setTemperatur',
+      params: {
+        value: json.temperature,
+      },
+    }
+    const data = await translateCommand(payload)
+    if (data !== false) {
+      await sendCommand(devEUI, data.command)
+    }
+    // send response
     res.send(response)
   })
 })

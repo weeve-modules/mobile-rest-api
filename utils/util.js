@@ -1,3 +1,4 @@
+const fetch = require('node-fetch')
 const config = require('config')
 const settings = config[process.env.NODE_ENV || 'prod']
 
@@ -14,16 +15,17 @@ const formatTimeDiff = (t1, t2) => {
 }
 
 const translateCommand = async command => {
+  const payload={
+    manufacturer: settings.MANUFACTURER_NAME,
+    device_type: settings.MANUFACTURER_DEVICE_TYPE,
+    command,
+  }
   const res = await fetch(settings.TRANSLATION_SERVICE_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      manufacturer: settings.MANUFACTURER_NAME,
-      device_type: settings.MANUFACTURER_DEVICE_TYPE,
-      command: command,
-    }),
+    body: JSON.stringify(payload),
   })
   if (res.ok) {
     const json = await res.json()
@@ -59,19 +61,26 @@ const sendCommand = async (deviceEUI, command) => {
   } else return false
 }
 
-const queryInfluxDB = async query => {
-  const res = await fetch(settings.INFLUXDB_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(query),
-  })
-  if (res.ok) {
-    const json = await res.json()
-    if (json.status) return json.data
-    else return false
-  } else return false
+const queryInfluxDB = async devEUI => {
+  try {
+    const query = {
+      query: `|> range(start: -10m, stop:-1m) |> filter(fn: (r) => r._measurement == "http_listener_v2") |> filter(fn: (r) => r._field == "targetTemperature") |> filter(fn: (r) => r["devEUI"] == "${devEUI}")`,
+    }
+    const res = await fetch(settings.INFLUXDB_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(query),
+    })
+    if (res.ok) {
+      const json = await res.json()
+      if (json.status) return json.data
+      else return false
+    } else return false
+  } catch (e) {
+    return false
+  }
 }
 
 module.exports = {
