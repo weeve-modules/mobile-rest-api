@@ -64,7 +64,7 @@ const sendCommand = async (deviceEUI, command) => {
 const queryInfluxDB = async devEUI => {
   try {
     const query = {
-      query: `|> range(start: -10m, stop:-1m) |> filter(fn: (r) => r._measurement == "http_listener_v2") |> filter(fn: (r) => r._field == "targetTemperature") |> filter(fn: (r) => r["devEUI"] == "${devEUI}")`,
+      query: `|> range(start: -10m, stop:-1m) |> filter(fn: (r) => r._measurement == "http_listener_v2") |> filter(fn: (r) => r._field == "targetTemperature") |> filter(fn: (r) => r["devEUI"] == "${devEUI.toLowerCase()}")`,
     }
     const res = await fetch(settings.INFLUXDB_URL, {
       method: 'POST',
