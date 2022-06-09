@@ -14,9 +14,9 @@ const database = client.db(settings.MONGO_DB_NAME)
 const getLocations = async () => {
   try {
     const list = await database.collection('location').find().toArray()
-    let r = []
+    const r = []
     if (list.length) {
-      for (let i = 0; i < list.length; i++) r.push(list[0]._id)
+      for (let i = 0; i < list.length; i++) r.push(list[i]._id)
     }
     return r
   } catch (e) {
@@ -169,7 +169,7 @@ const updateRoomPlan = async (collectionname, nameOfListing, _newData) => {
   }
 }
 
-const getDevicesList = async id => {
+const getDevicesListByLocation = async id => {
   const collection = database.collection('location')
   const r = await collection.find({ _id: ObjectId(id) }).toArray()
   let deviceList = []
@@ -199,6 +199,6 @@ module.exports = {
   toggleOnOffRoom,
   updateRoomName,
   updateRoomPlan,
-  getDevicesList,
+  getDevicesListByLocation,
   getLocations,
 }

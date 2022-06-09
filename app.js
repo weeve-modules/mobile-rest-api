@@ -8,7 +8,7 @@ const {
   toggleOnOffRoom,
   updateRoomName,
   updateRoomPlan,
-  getDevicesList,
+  getDevicesListByLocation,
   getLocations,
 } = require('./utils/mongodb')
 const { translateCommand, sendCommand, queryInfluxDB } = require('./utils/util')
@@ -56,10 +56,18 @@ app.get('/health', async (req, res) => {
 })
 
 app.get('/devices/:id', async (req, res) => {
-  const devices = await getDevicesList(req.params.id)
-  res.send({
-    data: devices,
-  })
+  const data = await getDevicesListByLocation(req.params.id)
+  if (data !== false) {
+    return res.send({
+      status: true,
+      data,
+    })
+  } else {
+    return res.send({
+      status: false,
+      message: 'Error fetching device list',
+    })
+  }
 })
 
 app.get('/locations/', async (req, res) => {
