@@ -15,11 +15,12 @@ const formatTimeDiff = (t1, t2) => {
 }
 
 const translateCommand = async command => {
-  const payload={
+  const payload = {
     manufacturer: settings.MANUFACTURER_NAME,
     device_type: settings.MANUFACTURER_DEVICE_TYPE,
     command,
   }
+  console.log(JSON.stringify(payload))
   const res = await fetch(settings.TRANSLATION_SERVICE_URL, {
     method: 'POST',
     headers: {
@@ -49,6 +50,8 @@ const sendCommand = async (deviceEUI, command) => {
       },
     },
   }
+  console.log(settings.ENCODER_SERVICE_URL)
+  console.log(JSON.stringify(payload))
   const res = await fetch(settings.ENCODER_SERVICE_URL, {
     method: 'POST',
     headers: {
@@ -57,6 +60,8 @@ const sendCommand = async (deviceEUI, command) => {
     body: JSON.stringify(payload),
   })
   if (res.ok) {
+    const json = await res.json()
+    console.log(json)
     return true
   } else return false
 }
@@ -64,7 +69,7 @@ const sendCommand = async (deviceEUI, command) => {
 const queryInfluxDB = async devEUI => {
   try {
     const query = {
-      query: `|> range(start: -10m, stop:-1m) |> filter(fn: (r) => r._measurement == "http_listener_v2") |> filter(fn: (r) => r._field == "targetTemperature") |> filter(fn: (r) => r["devEUI"] == "${devEUI.toLowerCase()}")`,
+      query: `|> range(start: -10m, stop:-1m) |> filter(fn: (r) => r._measurement == "http_listener_v2") |> filter(fn: (r) => r._field == "sensorTemperature") |> filter(fn: (r) => r["devEUI"] == "${devEUI.toLowerCase()}")`,
     }
     const res = await fetch(settings.INFLUXDB_URL, {
       method: 'POST',

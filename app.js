@@ -9,6 +9,7 @@ const {
   updateRoomName,
   updateRoomPlan,
   getDevicesList,
+  getLocations,
 } = require('./utils/mongodb')
 const { translateCommand, sendCommand, queryInfluxDB } = require('./utils/util')
 
@@ -61,10 +62,26 @@ app.get('/devices/:id', async (req, res) => {
   })
 })
 
+app.get('/locations/', async (req, res) => {
+  const data = await getLocations()
+  if (data !== false) {
+    return res.send({
+      status: true,
+      data,
+    })
+  } else {
+    return res.send({
+      status: false,
+      message: 'Error fetching locations list',
+    })
+  }
+})
+
 app.get('/devices/temperature/:id', async (req, res) => {
   const devEUI = req.params.id
   const data = await queryInfluxDB(devEUI)
   if (data !== false) {
+    data._value = (Math.round(data._value * 100) / 100).toFixed(2)
     return res.send({
       status: true,
       data,
@@ -120,7 +137,7 @@ app.post('/getDevicesUser', async (req, res) => {
   getDeviceByDeviceID('device', req.body.deviceID).then(async response => {
     const data = await queryInfluxDB(response.EUI.toLowerCase())
     if (data !== false) {
-      response.actualTemperature = data._value
+      response.actualTemperature = (Math.round(data._value * 100) / 100).toFixed(2)
     }
     res.send(response)
   })
@@ -139,21 +156,22 @@ app.post('/updateRoomTemperature', async (req, res) => {
       },
     },
   }).then(async response => {
-    // send command for temperature
-    const devEUI = json.devEUI
-    const payload = {
-      name: 'setTemperatur',
-      params: {
-        value: json.temperature,
-      },
-    }
-    const data = await translateCommand(payload)
-    if (data !== false) {
-      await sendCommand(devEUI, data.command)
-    }
     // send response
     res.send(response)
   })
+  // send command for temperature
+  const devEUI = json.devEUI
+  const payload = {
+    name: 'setTemperatur',
+    params: {
+      value: json.temperature,
+    },
+  }
+  const data = await translateCommand(payload)
+  console.log(data)
+  if (data !== false) {
+    await sendCommand(devEUI, data.command)
+  }
 })
 
 app.post('/toggleOnOffRoom', async (req, res) => {

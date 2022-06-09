@@ -11,6 +11,19 @@ const client = new MongoClient(MONGO_DB_URL)
 client.connect()
 const database = client.db(settings.MONGO_DB_NAME)
 
+const getLocations = async () => {
+  try {
+    const list = await database.collection('location').find().toArray()
+    let r = []
+    if (list.length) {
+      for (let i = 0; i < list.length; i++) r.push(list[0]._id)
+    }
+    return r
+  } catch (e) {
+    console.log(e)
+    return false
+  }
+}
 // Get Username and Password
 const getUserPasswordByName = async (collectionname, _email, _password) => {
   try {
@@ -187,4 +200,5 @@ module.exports = {
   updateRoomName,
   updateRoomPlan,
   getDevicesList,
+  getLocations,
 }
