@@ -1,334 +1,213 @@
-const express = require("express");
-const app = express();
-const bodyParser = require("body-parser");
-const { MongoClient } = require("mongodb");
-var ObjectId = require("mongodb").ObjectID;
+const { formatTimeDiff } = require('./utils/util')
+const ObjectId = require('mongodb').ObjectID
+const {
+  getUserPasswordByName,
+  getLocationByLocationID,
+  getDeviceByDeviceID,
+  updateRoomTemperature,
+  toggleOnOffRoom,
+  updateRoomName,
+  updateRoomPlan,
+  getDevicesList,
+  getLocations,
+} = require('./utils/mongodb')
+const { translateCommand, sendCommand, queryInfluxDB } = require('./utils/util')
 
-app.use(express.json());
+const config = require('config')
+const winston = require('winston')
+const expressWinston = require('express-winston')
+const express = require('express')
+const cors = require('cors')
+const settings = config[process.env.NODE_ENV || 'prod']
 
-const uri =
-  "mongodb://wohnio:wohnio@mongodb.wohnio.weeve.engineering:27017/wohnio?authSource=wohnio";
+// initialization
+const app = express()
+app.use(express.urlencoded({ extended: true }))
+app.use(express.json())
+app.use(cors())
+// logger
+app.use(
+  expressWinston.logger({
+    transports: [
+      new winston.transports.Console(),
+      /*
+    new winston.transports.File({
+        filename: 'logs/scheduler.log'
+    })
+    */
+    ],
+    format: winston.format.combine(winston.format.colorize(), winston.format.json()),
+    meta: true, // optional: control whether you want to log the meta data about the request (default to true)
+    msg: 'HTTP {{req.method}} {{req.url}}', // optional: customize the default logging message. E.g. "{{res.statusCode}} {{req.method}} {{res.responseTime}}ms {{req.url}}"
+    expressFormat: true, // Use the default Express/morgan request formatting. Enabling this will override any msg if true. Will only output colors with colorize set to true
+    colorize: false, // Color the text and status code, using the Express/morgan color palette (text: gray, status: default green, 3XX cyan, 4XX yellow, 5XX red).
+    ignoreRoute: function (req, res) {
+      return false
+    }, // optional: allows to skip some log messages based on request and/or response
+  })
+)
+const startTime = Date.now()
+// health check
+app.get('/health', async (req, res) => {
+  res.json({
+    serverStatus: 'Running',
+    uptime: formatTimeDiff(Date.now(), startTime),
+  })
+})
 
-const client = new MongoClient(uri);
-const dbname = "wohnio";
+app.get('/devices/:id', async (req, res) => {
+  const devices = await getDevicesList(req.params.id)
+  res.send({
+    data: devices,
+  })
+})
 
-// const port = process.env.PORT || 80;
-const port = process.env.PORT || 443;
+app.get('/locations/', async (req, res) => {
+  const data = await getLocations()
+  if (data !== false) {
+    return res.send({
+      status: true,
+      data,
+    })
+  } else {
+    return res.send({
+      status: false,
+      message: 'Error fetching locations list',
+    })
+  }
+})
 
-app.post("/checkUser", async (request, res) => {
-  connectToClient(client, uri).then(async (response) => {
-    getUserPasswordByName(
-      client,
-      dbname,
-      "user",
-      request.body.email,
-      request.body.password
-    ).then(async (response) => {
-      res.send(response);
-      // await client.close();
-    });
-  });
-});
+app.get('/devices/temperature/:id', async (req, res) => {
+  const devEUI = req.params.id
+  const data = await queryInfluxDB(devEUI)
+  if (data !== false) {
+    data._value = (Math.round(data._value * 100) / 100).toFixed(2)
+    return res.send({
+      status: true,
+      data,
+    })
+  } else {
+    return res.send({
+      status: false,
+      message: 'Error fetching device temperature',
+    })
+  }
+})
 
-app.post("/getLocationsUser", async (request, res) => {
-  connectToClient(client, uri).then(async (response) => {
-    getLocationByLocationID(
-      client,
-      dbname,
-      "location",
-      request.body.locationID
-    ).then(async (response) => {
-      res.send(response);
-      // await client.close();
-    });
-  });
-});
+app.post('/devices/temperature', async (req, res) => {
+  const json = req.body
+  const devEUI = json.devEUI
+  const payload = {
+    name: 'setTemperatur',
+    params: {
+      value: json.temperature,
+    },
+  }
+  const data = await translateCommand(payload)
+  if (data !== false) {
+    const melita = await sendCommand(devEUI, data.command)
+    if (melita !== false) {
+      return res.send({
+        status: true,
+        message: 'Command executed successfully',
+      })
+    }
+  }
+  return res.send({
+    status: false,
+    message: `Error sending command to the device ${devEUI}`,
+  })
+})
 
-app.post("/getDevicesUser", async (request, res) => {
-  connectToClient(client, uri).then(async (clientRes) => {
-    getDeviceByDeviceID(client, dbname, "device", request.body.deviceID).then(
-      async (response) => {
-        res.send(response);
-        await client.close();
-      }
-    );
-  });
-});
+app.post('/checkUser', async (req, res) => {
+  getUserPasswordByName('user', req.body.email, req.body.password).then(async response => {
+    res.send(response)
+    // ;
+  })
+})
 
-app.post("/updateRoomTemperature", async (request, res) => {
-  console.log("___ update room temperature ___");
-  connectToClient(client, uri).then(async (response) => {
-    updateRoomTemperature(
-      client,
-      dbname,
-      "device",
-      ObjectId(request.body.idSensor),
-      {
-        manualTemperature: {
-          command: {
-            name: "setTemperatur",
-            params: {
-              value: request.body.temperature,
-              until: "1970-01-01T00:00:00.000Z",
-            },
-          },
+app.post('/getLocationsUser', async (req, res) => {
+  getLocationByLocationID('location', req.body.locationID).then(async response => {
+    res.send(response)
+    // ;
+  })
+})
+
+app.post('/getDevicesUser', async (req, res) => {
+  getDeviceByDeviceID('device', req.body.deviceID).then(async response => {
+    const data = await queryInfluxDB(response.EUI.toLowerCase())
+    if (data !== false) {
+      response.actualTemperature = (Math.round(data._value * 100) / 100).toFixed(2)
+    }
+    res.send(response)
+  })
+})
+
+app.post('/updateRoomTemperature', async (req, res) => {
+  const json = req.body
+  updateRoomTemperature('device', ObjectId(json.idSensor), {
+    manualTemperature: {
+      command: {
+        name: 'setTemperatur',
+        params: {
+          value: json.temperature,
+          until: '1970-01-01T00:00:00.000Z',
         },
-      }
-    ).then(async (response) => {
-      res.send(response);
-      await client.close();
-    });
-  });
-});
-
-app.post("/toggleOnOffRoom", async (request, res) => {
-  connectToClient(client, uri).then(async (response) => {
-    toggleOnOffRoom(client, dbname, "device", ObjectId(request.body.idSensor), {
-      isOn: request.body.isOn,
-    }).then(async (response) => {
-      res.send(response);
-      await client.close();
-    });
-  });
-});
-
-app.post("/updateRoomName", async (request, res) => {
-  connectToClient(client, uri).then(async (response) => {
-    updateRoomName(client, dbname, "device", ObjectId(request.body.idSensor), {
-      label: request.body.nameRoom,
-    }).then(async (response2) => {
-      await client.close();
-    });
-  });
-});
-
-app.post("/updateRoomPlan", async (request, res) => {
-  connectToClient(client, uri).then(async (response) => {
-    updateRoomPlan(client, dbname, "device", ObjectId(request.body.idSensor), {
-      schedule: request.body.scheduleSensor,
-    }).then(async (response2) => {
-      await client.close();
-    });
-  });
-});
-
-app.listen(port, () => {
-  console.clear();
-  console.log("******** Server running ********");
-});
-
-// Connect to Database
-async function connectToClient(client, uri) {
-  try {
-    await client.connect();
-  } catch (e) {
-    console.log("Error - " + e);
-  } finally {
-    // await client.close();
+      },
+    },
+  }).then(async response => {
+    // send response
+    res.send(response)
+  })
+  // send command for temperature
+  const devEUI = json.devEUI
+  const payload = {
+    name: 'setTemperatur',
+    params: {
+      value: json.temperature,
+    },
   }
-}
-
-// Get Username and Password
-async function getUserPasswordByName(
-  client,
-  dbname,
-  collectionname,
-  _email,
-  _password
-) {
-  try {
-    const database = await client.db(dbname);
-    const users = await database.collection(collectionname);
-
-    const cursor = users.find({ email: _email });
-    if ((await cursor.count()) === 0) {
-      return { nofound: true };
-    }
-
-    var currentUser;
-
-    await cursor.forEach((user) => {
-      currentUser = user;
-    });
-
-    if (currentUser.password != _password) {
-      return { falsepassword: true };
-    } else {
-      return currentUser;
-    }
-  } finally {
-    // await client.close();
+  const data = await translateCommand(payload)
+  console.log(data)
+  if (data !== false) {
+    await sendCommand(devEUI, data.command)
   }
-}
+})
 
-// Get Location by LocationID
-async function getLocationByLocationID(
-  client,
-  dbname,
-  collectionname,
-  _locationID
-) {
-  try {
-    const database = await client.db(dbname);
-    const locations = await database.collection(collectionname);
+app.post('/toggleOnOffRoom', async (req, res) => {
+  toggleOnOffRoom('device', ObjectId(req.body.idSensor), {
+    isOn: req.body.isOn,
+  }).then(async response => {
+    res.send(response)
+  })
+})
 
-    const newobj = {
-      _id: ObjectId(_locationID),
-    };
-    const collection = locations.find(newobj);
-    if ((await collection.count()) === 0) {
-      return { nofound: true };
-    }
+app.post('/updateRoomName', async (req, res) => {
+  updateRoomName('device', ObjectId(req.body.idSensor), {
+    label: req.body.nameRoom,
+  }).then(async response2 => {})
+})
 
-    var currentLocation;
+app.post('/updateRoomPlan', async (req, res) => {
+  updateRoomPlan('device', ObjectId(req.body.idSensor), {
+    schedule: req.body.scheduleSensor,
+  }).then(async response2 => {})
+})
 
-    await collection.forEach((location) => {
-      currentLocation = location;
-    });
-    return currentLocation;
-  } finally {
-    // await client.close();
+// handle exceptions
+app.use(async (err, req, res, next) => {
+  if (res.headersSent) {
+    return next(err)
   }
-}
+  const errCode = err.status || 401
+  res.status(errCode).send({
+    status: false,
+    message: err.message,
+  })
+})
 
-// Get Sensor by SensorID
-async function getDeviceByDeviceID(client, dbname, collectionname, _sensorID) {
-  try {
-    const database = await client.db(dbname);
-    const sensors = await database.collection(collectionname);
-
-    const newobj = {
-      _id: ObjectId(_sensorID),
-    };
-
-    const collection = sensors.findOne(newobj);
-
-    var currentSensor;
-
-    // if ((await collection.count()) === 0) {
-    // return { nofound: true };
-    // } else {
-    currentSensor = collection;
-    // console.log(currentSensor);
-    // console.log(currentSensor);
-    return currentSensor;
-    // }
-
-    // var currentSensor = [];
-
-    // await collection
-    //   .forEach((sensor) => {
-    //     if (sensor["_id"].toString() === newobj._id.toString()) {
-    //       currentSensor = sensor;
-    //       console.log(currentSensor);
-    //     } else {
-    //       return { nofound: true };
-    //     }
-    //   })
-    //   .then((res) => {
-    //     console.log(res);
-    //     console.log(currentSensor);
-    //     return currentSensor;
-    //   });
-  } finally {
-    // await client.close();
-  }
-}
-
-// Update Room Temperature
-async function updateRoomTemperature(
-  client,
-  dbname,
-  collectioname,
-  nameOfListing,
-  _newData
-) {
-  try {
-    const result = await client
-      .db(dbname)
-      .collection(collectioname)
-      .updateOne({ _id: nameOfListing }, { $set: _newData });
-
-    console.log(
-      `${result.matchedCount} document(s) matched the query criteria.`
-    );
-    console.log(`${result.modifiedCount} document(s) was/were updated.`);
-
-    return { update: true };
-  } finally {
-    // await client.close();
-  }
-}
-
-// Toggle Room - On / Off
-async function toggleOnOffRoom(
-  client,
-  dbname,
-  collectioname,
-  nameOfListing,
-  _newData
-) {
-  try {
-    const result = await client
-      .db(dbname)
-      .collection(collectioname)
-      .updateOne({ _id: nameOfListing }, { $set: _newData });
-
-    console.log(
-      `${result.matchedCount} document(s) matched the query criteria.`
-    );
-    console.log(`${result.modifiedCount} document(s) was/were updated.`);
-
-    return { update: true };
-  } finally {
-    // await client.close();
-  }
-}
-
-// Update Room Name
-async function updateRoomName(
-  client,
-  dbname,
-  collectioname,
-  nameOfListing,
-  _newData
-) {
-  try {
-    const result = await client
-      .db(dbname)
-      .collection(collectioname)
-      .updateOne({ _id: nameOfListing }, { $set: _newData });
-    console.log(
-      `${result.matchedCount} document(s) matched the query criteria.`
-    );
-    console.log(`${result.modifiedCount} document(s) was/were updated.`);
-
-    return { update: true };
-  } finally {
-    // await client.close();
-  }
-}
-
-// Update Room Plan
-async function updateRoomPlan(
-  client,
-  dbname,
-  collectionname,
-  nameOfListing,
-  _newData
-) {
-  try {
-    const result = await client
-      .db(dbname)
-      .collection(collectionname)
-      .updateOne({ _id: nameOfListing }, { $set: _newData });
-    console.log(
-      `${result.matchedCount} document(s) matched the query criteria.`
-    );
-    console.log(`${result.modifiedCount} document(s) was/were updated.`);
-
-    return { update: true };
-  } finally {
-    // await client.close();
-  }
+if (require.main === module) {
+  app.listen(settings.PORT, settings.HOST, () => {
+    console.log(`Service listening on ${settings.PORT}`)
+  })
 }

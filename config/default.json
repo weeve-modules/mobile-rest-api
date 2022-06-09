@@ -1,0 +1,30 @@
+{
+  "prod": {
+    "PORT": 8080,
+    "HOST": "localhost",
+    "MONGO_DB_NAME": "wohnio",
+    "MONGO_DB_USERNAME": "wohnio",
+    "MONGO_DB_PASSWORD": "wohnio",
+    "MONGO_DB_HOST": "mongodb.wohnio.weeve.engineering:27017",
+    "TRANSLATION_SERVICE_URL": "https://generic-translator.melita.weeve.engineering",
+    "MANUFACTURER_NAME": "mcclimate",
+    "MANUFACTURER_DEVICE_TYPE": "vickithermostat",
+    "MELITA_COMMAND": "addDownlinkDeviceQueue",
+    "ENCODER_SERVICE_URL": "https://wohnio-node2.melita.weeve.engineering",
+    "INFLUXDB_URL": "https://http-ingress.wohnio.weeve.engineering/"
+  },
+  "dev": {
+    "PORT": 8080,
+    "HOST": "localhost",
+    "MONGO_DB_NAME": "wohnio",
+    "MONGO_DB_USERNAME": "",
+    "MONGO_DB_PASSWORD": "",
+    "MONGO_DB_HOST": "localhost:27017",
+    "TRANSLATION_SERVICE_URL": "https://generic-translator.melita.weeve.engineering",
+    "MANUFACTURER_NAME": "mcclimate",
+    "MANUFACTURER_DEVICE_TYPE": "vickithermostat",
+    "MELITA_COMMAND": "addDownlinkDeviceQueue",
+    "ENCODER_SERVICE_URL": "https://wohnio-node2.melita.weeve.engineering",
+    "INFLUXDB_URL": "https://http-ingress.wohnio.weeve.engineering/"
+  }
+}
